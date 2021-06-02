@@ -246,15 +246,26 @@ function onBot({ models }) {
 		writeFileSync(appStateFile, JSON.stringify(api.getAppState(), null, "\t"));
 
 		const handleListen = require("./includes/listen")({ api, models, client, global, timeStart });
+		
+		function listen() {
+			api.listenMqtt((error, event) => {
+				if (error) return logger(`handleListener đã xảy ra lỗi: ${JSON.stringify(error)}`, "error");
+				if ((["presence","typ","read_receipt"].some(typeFilter => typeFilter == event.type))) return;
+				(global.config.DeveloperMode == true) ? console.log(event) : "";
+				return handleListen(event);
+			});
+		}
+		listen();
 
-		api.listenMqtt((error, event) => {
-			if (error) return logger(`handleListener đã xảy ra lỗi: ${JSON.stringify(error)}`, "error");
-			if ((["presence","typ","read_receipt"].some(typeFilter => typeFilter == event.type))) return;
-			(global.config.DeveloperMode == true) ? console.log(event) : "";
-			return handleListen(event);
-		});
-
-		setInterval(function () { return handleListen({ type: "ping", time: 1, reader: 1, threadID: 1 }) }, 60000);
+		setInterval(() => {
+				api.listenMqtt().stopListening();
+				setTimeout(() => listen(), 5000);
+				if (__GLOBAL.settings.DeveloperMode == true) {
+					const moment = require("moment");
+					var time = moment.tz("Asia/Ho_Chi_minh").format("HH:MM:ss L");
+					logger(`[ ${time} ] Listen restarted`, "[ DEV MODE ]");
+				}
+			}, 1800000);
 		return;
 	});	
 }
